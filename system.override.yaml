@@ -1,0 +1,13 @@
+services:
+  frontend:
+    ports: !override
+      - "127.0.0.1:3001:3000"
+    networks:
+      default: {}
+      shared:
+        aliases: [system-web]
+
+networks:
+  shared:
+    external: true
+    name: oplai_gateway

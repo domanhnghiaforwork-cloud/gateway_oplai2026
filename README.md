@@ -1,0 +1,137 @@
+# Chạy system và chatbot trên một domain ngrok
+
+Thư mục hiện tại: `D:\nghia\oplai2026\system\gateway_oplai2026`.
+
+Đã build và chạy thử trên máy này ngày 05/10/2026: hai ứng dụng trả HTTP 200 qua domain public, API system và chatbot đi đúng backend, PostgreSQL/Redis sẵn sàng, SSE có xác thực truyền được qua Nginx. Hệ thống đang dùng authtoken chatbot hiện có trong `.env` riêng của gateway.
+
+| Địa chỉ | Ứng dụng |
+| --- | --- |
+| `https://larcher-brecken-palynologically.ngrok-free.dev/` | System OLP AI |
+| `https://larcher-brecken-palynologically.ngrok-free.dev/chatbot` | Chatbot |
+| `http://localhost:8080/` | System qua gateway tại máy local |
+| `http://localhost:8080/chatbot` | Chatbot qua gateway tại máy local |
+| `http://localhost:3001/` | Frontend system trực tiếp |
+| `http://localhost:3000/chatbot` | Frontend chatbot trực tiếp |
+| `http://localhost:4040/` | Ngrok inspector |
+
+## Chuẩn bị một lần
+
+1. Mở Docker Desktop, đợi Docker Engine sẵn sàng. Cần Docker Compose >= 2.24.4 (cấu hình override cổng); máy hiện tại đã có phiên bản phù hợp.
+2. Mở PowerShell và vào thư mục gateway:
+
+   ```powershell
+   cd D:\nghia\oplai2026\system\gateway_oplai2026
+   ```
+
+3. Mở cấu hình ngrok:
+
+   ```powershell
+   notepad .env
+   ```
+
+   File `.env` đã được chuẩn bị tại máy này. Kiểm tra `NGROK_DOMAIN` đúng static domain và `NGROK_AUTHTOKEN` là authtoken của tài khoản sở hữu domain đó. Domain viết không có `https://` hoặc dấu `/`. Không cần chạy ngrok riêng ở terminal.
+
+   Nếu chuyển sang máy mới và chưa có file này:
+
+   ```powershell
+   Copy-Item .env.example .env
+   notepad .env
+   ```
+
+   Đồng thời cấu hình `.env` và `backend/.env` của chatbot theo các file example. Giữ thông tin PostgreSQL khớp với database hiện có. Không cần chép `.env` của system sang chatbot.
+
+## Chạy lần đầu hoặc sau khi sửa mã nguồn
+
+Tại thư mục gateway_oplai2026:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1 -Build
+```
+
+Lệnh này:
+
+- Kiểm tra Docker và cấu hình Compose.
+- Tạo mạng dùng chung `oplai_gateway` nếu chưa có.
+- Dừng ngrok cũ trong project chatbot để tránh chiếm domain/cổng 4040.
+- Build image và chạy system, chatbot cùng PostgreSQL, Redis, worker; bước migrate của chatbot chạy theo compose hiện có.
+- Chạy Nginx, đợi API hai ứng dụng sẵn sàng.
+- Chạy một ngrok tunnel trỏ vào Nginx và xác nhận tunnel đã mở đúng domain.
+
+`-ExecutionPolicy Bypass` chỉ áp dụng cho tiến trình PowerShell của lệnh này. `-Build` cần ở lần chạy đầu để chatbot được build với `/chatbot`.
+
+Sau khi script báo thành công, mở hai địa chỉ public ở bảng trên. Hai ứng dụng vẫn đăng nhập bằng tài khoản riêng; dùng chung domain không đồng bộ tài khoản.
+
+Nếu ngrok hiện trang xác nhận lần đầu, bấm **Visit Site** để vào ứng dụng. Đã kiểm tra trang đăng nhập chatbot và giao diện system bằng trình duyệt qua domain public sau bước này.
+
+## Chạy những lần sau
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1
+```
+
+Khởi động bằng image đã build, nhanh hơn. Nếu sửa mã nguồn hoặc cấu hình build của chatbot, dùng lại `-Build`.
+
+Chỉ kiểm tra trên máy local, chưa mở ngrok:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1 -Build -LocalOnly
+```
+
+Mở `http://localhost:8080/` và `http://localhost:8080/chatbot`. Để chuyển từ local sang public, chạy `start.ps1` không có `-LocalOnly`.
+
+## Kiểm tra trạng thái và log
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\status.ps1
+```
+
+Hiển thị trạng thái của cả hai project và gateway. Container `migrate` của chatbot kết thúc với mã `0` là bình thường.
+
+Log Nginx/ngrok:
+
+```powershell
+docker compose --profile tunnel logs --tail 100 nginx ngrok
+```
+
+Log chatbot:
+
+```powershell
+docker compose --project-directory ..\chatbot_oplai2026\chat_bot_allforn --env-file ..\chatbot_oplai2026\chat_bot_allforn\.env -f ..\chatbot_oplai2026\chat_bot_allforn\compose.yaml -f .\chatbot.override.yaml logs --tail 100 frontend backend worker
+```
+
+Log system:
+
+```powershell
+docker compose --project-directory ..\system_olpai2026 -p system_olpai2026 -f ..\system_olpai2026\docker-compose.yml -f .\system.override.yaml logs --tail 100 frontend backend
+```
+
+Thêm `-f` ngay sau `logs` để theo dõi liên tục; nhấn `Ctrl+C` để thoát theo dõi mà không dừng ứng dụng.
+
+## Dừng toàn bộ
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\stop.ps1
+```
+
+Dừng system, chatbot và gateway; giữ container và volume dữ liệu để lần sau khởi động lại.
+
+## Cách cấu hình hoạt động
+
+Nginx chuyển `/chatbot` và `/chatbot/...` tới `chatbot-web:3000`, giữ nguyên tiền tố. Các đường dẫn còn lại tới `system-web:3000`. Hai frontend tự chuyển API tới backend trong mạng riêng. SSE của chatbot đi qua Nginx với buffering tắt; Nginx cho phép request body tối đa 100 MB (ứng dụng phía sau có thể có giới hạn riêng).
+
+Các file `system.override.yaml` và `chatbot.override.yaml` chỉ áp dụng khi chạy bằng các script ở đây. Chúng thay thế cổng host của system thành `3001`, chatbot thành `3000`, và kết nối hai frontend vào mạng gateway. Cấu hình Compose gốc vẫn dùng để chạy từng repo độc lập. Trong chế độ chạy chung, luôn dùng script để giữ đúng các override.
+
+Script giữ tên project system là `system_olpai2026`; chatbot dùng `COMPOSE_PROJECT_NAME` từ `.env` hiện có (`chatbot-v42`). Vì vậy các volume `system_olpai2026_backend_data`, `chatbot-v42_postgres-data` và `chatbot-v42_redis-data` được dùng lại. Khi di chuyển thư mục, giữ nguyên tên project để tiếp tục dùng đúng dữ liệu.
+
+Chatbot hỗ trợ `NEXT_PUBLIC_BASE_PATH` khi build. Chạy chung: `/chatbot`; chạy độc lập theo compose gốc: để `CHATBOT_BASE_PATH` trống và build lại frontend. Local development: để `NEXT_PUBLIC_BASE_PATH` trống trong `frontend/.env.local`. Đổi base path cần build lại, không chỉ restart container.
+
+Trong lần triển khai này, database SQLite trong volume system cũ thiếu `problems.category` và `problems.pdf_filename`. Backend đã được bổ sung migration tự động trước bước seed; đề có mã `NLP-*` được gán nhóm `NLP`, các đề còn lại mặc định `CV`. Bản sao database trước khi bổ sung hai cột nằm trong `system_olpai2026/backups/pre-gateway-20261005-144530/`. Migration chỉ thêm các cột còn thiếu và có thể chạy lại.
+
+Nếu ngrok không mở được domain, xem log ngrok và kiểm tra domain/authtoken trong `.env`. Dừng các tiến trình ngrok khác đang chiếm domain. Nếu thấy `port is already allocated`, kiểm tra `docker ps` và tiến trình đang dùng cổng `3000`, `3001`, `8080` hoặc `4040`. Đổi `GATEWAY_PORT`/`NGROK_INSPECTOR_PORT` trong `.env` khi cần; hai cổng frontend được đặt trong các file override.
+
+cấu trúc thư mục
+system
+   chatbot_oplai2026
+      chat_bot_allforn
+   gateway_oplai2026
+   system_oplai2026

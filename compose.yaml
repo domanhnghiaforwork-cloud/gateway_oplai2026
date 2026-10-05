@@ -1,0 +1,42 @@
+name: oplai-gateway
+
+services:
+  nginx:
+    image: nginx:1.28-alpine
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-8080}:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - default
+      - shared
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/gateway-health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    command:
+      - http
+      - http://nginx:80
+      - --url=https://${NGROK_DOMAIN:-}
+      - --config=/etc/ngrok.yml
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    volumes:
+      - ./ngrok.yml:/etc/ngrok.yml:ro
+    ports:
+      - "127.0.0.1:${NGROK_INSPECTOR_PORT:-4040}:4040"
+    depends_on:
+      nginx:
+        condition: service_healthy
+    profiles: ["tunnel"]
+    restart: unless-stopped
+
+networks:
+  shared:
+    external: true
+    name: oplai_gateway
