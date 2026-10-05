@@ -1,6 +1,6 @@
 # Chạy system và chatbot trên một domain ngrok
 
-Thư mục hiện tại: `D:\nghia\oplai2026\system\gateway_oplai2026`.
+Thư mục gateway trên Windows: `D:\nghia\oplai2026\system\gateway_oplai2026`. Trên Linux, ví dụ: `~/nghia/olpai2026/system/gateway_oplai2026`.
 
 Đã build và chạy thử trên máy này ngày 05/10/2026: hai ứng dụng trả HTTP 200 qua domain public, API system và chatbot đi đúng backend, PostgreSQL/Redis sẵn sàng, SSE có xác thực truyền được qua Nginx. Hệ thống đang dùng authtoken chatbot hiện có trong `.env` riêng của gateway.
 
@@ -14,7 +14,90 @@ Thư mục hiện tại: `D:\nghia\oplai2026\system\gateway_oplai2026`.
 | `http://localhost:3000/chatbot` | Frontend chatbot trực tiếp |
 | `http://localhost:4040/` | Ngrok inspector |
 
-## Chuẩn bị một lần
+## Chạy trên Linux (Ubuntu)
+
+Các script `.ps1` chạy bằng PowerShell 7 trên Linux. Dùng lệnh `pwsh`, đường dẫn `./start.ps1` và không cần `-ExecutionPolicy Bypass`. Những ví dụ `powershell ... .\start.ps1` ở các mục bên dưới dành cho Windows.
+
+### Chuẩn bị một lần
+
+1. Cài và khởi động Docker Engine hoặc Docker Desktop. Docker Compose cần phiên bản >= 2.24.4 để đọc cấu hình override. Kiểm tra tài khoản hiện tại truy cập Docker được:
+
+   ```bash
+   docker info
+   docker compose version
+   ```
+
+2. Cài PowerShell qua Snap và kiểm tra phiên bản:
+
+   ```bash
+   sudo snap install powershell --classic
+   pwsh --version
+   ```
+
+   Nếu Snap báo `classic confinement`, cần thêm `--classic` như lệnh trên. Tùy chọn này cho phép PowerShell hoạt động ngoài sandbox mặc định của Snap. Xem [hướng dẫn cài PowerShell của Microsoft](https://learn.microsoft.com/en-us/powershell/scripting/install/alternate-install-methods?view=powershell-7.6#installation-via-snap).
+
+3. Vào thư mục gateway và mở cấu hình. Chỉ chép file example nếu chưa có `.env`:
+
+   ```bash
+   cd ~/nghia/olpai2026/system/gateway_oplai2026
+   if [ ! -f .env ]; then
+       cp .env.example .env
+   fi
+   nano .env
+   ```
+
+   Điền `NGROK_DOMAIN` và `NGROK_AUTHTOKEN` để dùng domain public. Domain không có `https://` hoặc dấu `/`. Đồng thời chuẩn bị `.env` và `backend/.env` của chatbot theo các file example; giữ thông tin PostgreSQL khớp với dữ liệu hiện có. Để `CHATBOT_SSO_SECRET` trống khi thiết lập mới: `start.ps1` tự tạo, lưu vào `.env` gateway và truyền cùng khóa cho hai backend.
+
+### Khởi động, kiểm tra và dừng
+
+Chạy các lệnh sau từ thư mục gateway trong terminal Linux:
+
+| Thao tác | Lệnh |
+| --- | --- |
+| Chạy lần đầu hoặc sau khi sửa mã nguồn | `pwsh -NoProfile -File ./start.ps1 -Build` |
+| Chạy lại bằng image đã build | `pwsh -NoProfile -File ./start.ps1` |
+| Chạy local, không mở ngrok | `pwsh -NoProfile -File ./start.ps1 -Build -LocalOnly` |
+| Xem trạng thái | `pwsh -NoProfile -File ./status.ps1` |
+| Nhập tài khoản chatbot hiện có sang system | `pwsh -NoProfile -File ./sync-accounts.ps1` |
+| Dừng toàn bộ, giữ dữ liệu | `pwsh -NoProfile -File ./stop.ps1` |
+
+Chế độ local mở tại `http://localhost:8080/` và `http://localhost:8080/chatbot` (nếu giữ `GATEWAY_PORT=8080`). Chạy public bằng lệnh không có `-LocalOnly`. Việc tự tạo tài khoản chatbot từ system và SSO dùng chung cấu hình gateway trên cả Windows và Linux.
+
+Xem log Nginx/ngrok:
+
+```bash
+docker compose --profile tunnel logs --tail 100 nginx ngrok
+```
+
+Xem log chatbot:
+
+```bash
+docker compose --project-directory ../chatbot_oplai2026/chat_bot_allforn --env-file ../chatbot_oplai2026/chat_bot_allforn/.env -f ../chatbot_oplai2026/chat_bot_allforn/compose.yaml -f ./chatbot.override.yaml logs --tail 100 frontend backend worker
+```
+
+Xem log system:
+
+```bash
+docker compose --project-directory ../system_olpai2026 -p system_olpai2026 -f ../system_olpai2026/docker-compose.yml -f ./system.override.yaml logs --tail 100 frontend backend
+```
+
+Thêm `-f` ngay sau `logs` để theo dõi liên tục; nhấn `Ctrl+C` để thoát theo dõi mà không dừng ứng dụng.
+
+### Kiểm tra tài khoản và SSO
+
+Sau khi khởi động hai ứng dụng và nhập tài khoản chatbot sang system, kiểm tra SSO bằng Python 3 trên máy host. Lệnh dưới đặt alias `python` thành `python3` trong phiên PowerShell vì `verify-sso.ps1` gọi `python`:
+
+```bash
+pwsh -NoProfile -Command 'Set-Alias python python3; & ./verify-sso.ps1'
+```
+
+Kiểm thử cơ chế tự tạo tài khoản trên database tạm, không cần Docker hoặc khóa thật (Python đã cài dependencies xác thực của hai backend và `aiosqlite`):
+
+```bash
+python3 ./test_account_sync.py
+```
+
+## Chuẩn bị một lần trên Windows
 
 1. Mở Docker Desktop, đợi Docker Engine sẵn sàng. Cần Docker Compose >= 2.24.4 (cấu hình override cổng); máy hiện tại đã có phiên bản phù hợp.
 2. Mở PowerShell và vào thư mục gateway:
@@ -51,7 +134,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1 -Build
 Lệnh này:
 
 - Kiểm tra Docker và cấu hình Compose.
-- Tạo mạng dùng chung `oplai_gateway` nếu chưa có.
+- Tạo mạng dùng chung `oplai_gateway` và mạng đồng bộ backend `oplai_accounts` nếu chưa có.
 - Dừng ngrok cũ trong project chatbot để tránh chiếm domain/cổng 4040.
 - Build image và chạy system, chatbot cùng PostgreSQL, Redis, worker; bước migrate của chatbot chạy theo compose hiện có.
 - Chạy Nginx, đợi API hai ứng dụng sẵn sàng.
@@ -59,7 +142,7 @@ Lệnh này:
 
 `-ExecutionPolicy Bypass` chỉ áp dụng cho tiến trình PowerShell của lệnh này. `-Build` cần ở lần chạy đầu để chatbot được build với `/chatbot`.
 
-Sau khi script báo thành công, mở hai địa chỉ public ở bảng trên. Hai ứng dụng vẫn đăng nhập bằng tài khoản riêng; dùng chung domain không đồng bộ tài khoản.
+Sau khi script báo thành công, mở hai địa chỉ public ở bảng trên. Hai ứng dụng giữ phiên đăng nhập riêng; gateway bật SSO và tự tạo tài khoản chatbot cho tài khoản mới được tạo trong system như mô tả ở mục **Tài khoản dùng chung và mở Chatbot**.
 
 Nếu ngrok hiện trang xác nhận lần đầu, bấm **Visit Site** để vào ứng dụng. Đã kiểm tra trang đăng nhập chatbot và giao diện system bằng trình duyệt qua domain public sau bước này.
 
