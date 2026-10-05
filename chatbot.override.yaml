@@ -1,4 +1,7 @@
 services:
+  backend:
+    environment:
+      CHATBOT_SSO_SECRET: ${CHATBOT_SSO_SECRET:?Start using gateway start.ps1 to initialize SSO}
   frontend:
     build:
       args:

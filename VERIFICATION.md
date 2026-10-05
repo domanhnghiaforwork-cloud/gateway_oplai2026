@@ -1,5 +1,19 @@
 # Kết quả kiểm tra ngày 05/10/2026
 
+## Đồng bộ tài khoản và SSO (bổ sung)
+
+- Dựng lại và chạy toàn bộ Docker thành công; frontend/backend chatbot, PostgreSQL, Redis và Nginx healthy; domain public đang mở.
+- Chatbot có 1 tài khoản: `admin@gmail.com`, quyền admin. Đã tạo trong system với username `admin_7932b2e1` để tránh trùng username `admin`. Giữ nguyên hash mật khẩu Argon2 và quyền; 5 tài khoản system cũ không đổi bất kỳ giá trị nào. SQLite integrity check: `ok`.
+- Sao lưu trước khi nhập tại `/app/data/pre-chatbot-sync-20261005-085512-220420.db` trong volume backend system. Chạy đồng bộ lần hai: tạo 0, giữ nguyên 1 tài khoản trùng email.
+- TypeScript hai frontend và Docker production build chatbot thành công. Navbar không có lỗi ESLint mới; ba cảnh báo unused đã có sẵn. File API system còn hai lỗi `any` có sẵn từ HEAD.
+- Kiểm tra importer trên database riêng: giữ tài khoản/email/mật khẩu/quyền đã có; xử lý username trùng; mật khẩu nhập đăng nhập được qua hàm endpoint login; mật khẩu sai bị từ chối; chạy lại không tạo trùng; dữ liệu quyền không hợp lệ bị từ chối trước khi ghi.
+- `verify-sso.ps1` PASS: SSO cho tài khoản đã nhập, endpoint cấp vé yêu cầu đăng nhập, kiểm tra chữ ký/issuer/audience/type/role/expiry, từ chối vé dùng lại, hai worker đổi cùng vé chỉ một yêu cầu thành công, vé SSO không dùng được như JWT chatbot, tương thích mật khẩu Argon2/PBKDF2/cũ.
+- Kiểm tra quyền độc lập: tài khoản chatbot đã có quyền user không bị nâng lên admin từ vé system; không cấu hình khóa SSO thì hai backend từ chối SSO, JWT thông thường vẫn hoạt động.
+- Trình duyệt trên domain public: bấm menu Chatbot tạo tab mới, tự đăng nhập `admin@gmail.com` và đến `/chatbot/admin`. Fragment đã xóa, `window.opener` là null; không có lỗi JavaScript.
+- Trình duyệt: khi system đang đăng nhập `an.nv@student.actvn.edu.vn` và chatbot là `admin@gmail.com`, bấm Chatbot giữ đúng email, quyền và JWT chatbot hiện tại. Không tạo tài khoản chatbot cho system trong trường hợp này.
+- Trình duyệt: thay JWT chatbot bằng JWT thực sự đã hết hạn, bấm Chatbot từ system khôi phục phiên hợp lệ của `admin@gmail.com`.
+- Ảnh giao diện sau SSO: `verification/screenshot-1791190656500.png` (thư mục verification được bỏ qua bởi Git).
+
 - Các script PowerShell parse thành công; `status.ps1` chạy được.
 - Ba cấu hình Compose hợp lệ. Khi merge override, system chỉ dùng cổng frontend host 3001, chatbot chỉ dùng 3000. Frontend có mạng riêng và mạng gateway; backend không tham gia mạng gateway.
 - TypeScript chatbot: `npm run typecheck` thành công. Docker build frontend chatbot với base path `/chatbot` thành công.

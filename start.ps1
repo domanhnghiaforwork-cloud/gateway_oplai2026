@@ -15,6 +15,12 @@ if (-not (Test-Path -LiteralPath $gatewayEnvPath)) {
     Write-Host 'Created gateway/.env. Fill in NGROK_DOMAIN and NGROK_AUTHTOKEN for public access.'
 }
 $gatewaySettings = Read-EnvFile $gatewayEnvPath
+Initialize-Sso
+if ($LocalOnly) {
+    $env:CHATBOT_URL = 'http://localhost:3000/chatbot'
+} else {
+    $env:CHATBOT_URL = "https://$($gatewaySettings['NGROK_DOMAIN'])/chatbot"
+}
 if (-not $LocalOnly) {
     if (-not $gatewaySettings['NGROK_AUTHTOKEN'] -or $gatewaySettings['NGROK_AUTHTOKEN'] -match '^replace_') {
         throw 'Set NGROK_AUTHTOKEN in gateway/.env, or use -LocalOnly.'

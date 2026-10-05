@@ -129,6 +129,46 @@ Trong lần triển khai này, database SQLite trong volume system cũ thiếu `
 
 Nếu ngrok không mở được domain, xem log ngrok và kiểm tra domain/authtoken trong `.env`. Dừng các tiến trình ngrok khác đang chiếm domain. Nếu thấy `port is already allocated`, kiểm tra `docker ps` và tiến trình đang dùng cổng `3000`, `3001`, `8080` hoặc `4040`. Đổi `GATEWAY_PORT`/`NGROK_INSPECTOR_PORT` trong `.env` khi cần; hai cổng frontend được đặt trong các file override.
 
+## Tài khoản dùng chung và mở Chatbot
+
+Trong PowerShell, vào thư mục gateway rồi dựng và chạy cả hai ứng dụng:
+
+```powershell
+cd D:\nghia\oplai2026\system\gateway_oplai2026
+powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1 -Build
+```
+
+`-Build` dựng lại image để cài hỗ trợ mật khẩu Argon2 cho system và cập nhật trang đăng nhập liên kết của chatbot. Những lần chạy sau, bỏ `-Build` nếu mã nguồn không thay đổi.
+
+Đồng bộ toàn bộ tài khoản chatbot hiện có sang system:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-accounts.ps1
+```
+
+Lệnh này giữ email, mật khẩu và quyền admin/user cho tài khoản mới. Mật khẩu được sao chép dưới dạng hash, không có mật khẩu thô trong log hay file trên máy host. Đăng nhập system bằng email và mật khẩu đang dùng ở chatbot; script cũng hiển thị username system được tạo. Tài khoản system trùng email được giữ nguyên cả mật khẩu và quyền. Chạy lại script sẽ bỏ qua các email đã có. Script sao lưu SQLite vào `pre-chatbot-sync-*.db` trong volume backend trước mỗi lần nhập; thông báo cuối lệnh ghi đường dẫn bản sao.
+
+Mở `https://larcher-brecken-palynologically.ngrok-free.dev/`, đăng nhập system rồi bấm **Chatbot** ở góc phải. Tab mới sẽ:
+
+- Giữ tài khoản chatbot đang đăng nhập nếu phiên vẫn hợp lệ, kể cả khi khác tài khoản system.
+- Khi chatbot chưa đăng nhập hoặc phiên hết hạn, đăng nhập bằng email của tài khoản system.
+- Nếu email system chưa có trong chatbot, tạo tài khoản chatbot tương ứng với quyền từ system. Tài khoản mới này dùng SSO; mật khẩu chatbot được tạo ngẫu nhiên và không được cung cấp. Với các tài khoản được sao chép từ chatbot, mật khẩu chatbot hiện tại vẫn giữ nguyên.
+- Khi system chưa đăng nhập, mở chatbot như trước để người dùng đăng nhập trực tiếp.
+
+`start.ps1` tự tạo khóa SSO riêng trong `.env` của gateway và truyền cùng khóa cho hai backend qua các override. Vé do backend system cấp có hạn 60 giây, dùng một lần, kiểm tra chữ ký, mục đích, bên cấp và bên nhận. Vé đi trong fragment `#ticket=...`, được xóa ngay khi trang nhận tải, không truyền mật khẩu hoặc token phiên system qua URL. Không chia sẻ `.env` hoặc khóa này.
+
+Đăng nhập và đăng xuất của hai ứng dụng vẫn riêng biệt: đăng xuất system không tự đăng xuất chatbot. Nếu đang ở chế độ `-LocalOnly`, nút Chatbot mở `http://localhost:3000/chatbot` và SSO cũng hoạt động giữa các cổng khác nhau.
+
+Compose gốc của mỗi repo không bật SSO. Các tài khoản được nhập vẫn đăng nhập system độc lập bằng email và mật khẩu chatbot. Khi chuyển chatbot từ gateway sang chạy độc lập, dựng lại frontend với `CHATBOT_BASE_PATH` trống như hướng dẫn ở trên.
+
+Kiểm tra lại tích hợp SSO sau khi chạy và đồng bộ (cần Python 3 trên Windows):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\verify-sso.ps1
+```
+
+Lệnh kiểm tra tài khoản đã nhập, mật khẩu Argon2/PBKDF2/cũ, từ chối yêu cầu chưa đăng nhập, vé sai chữ ký/mục đích/bên cấp/bên nhận/hết hạn, vé dùng lại và đổi vé đồng thời. Nó không đổi mật khẩu hoặc tạo tài khoản thử trong database đang chạy. Token kiểm tra chỉ giữ trong bộ nhớ, không in ra terminal.
+
 cấu trúc thư mục
 system
    chatbot_oplai2026

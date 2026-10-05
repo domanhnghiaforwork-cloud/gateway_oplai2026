@@ -23,6 +23,28 @@ function Invoke-Docker([string[]]$DockerArgs) {
     }
 }
 
+function Initialize-Sso {
+    $settings = Read-EnvFile $gatewayEnvPath
+    if (-not $settings['CHATBOT_SSO_SECRET']) {
+        $bytes = New-Object byte[] 48
+        $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+        try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+        $secret = [Convert]::ToBase64String($bytes)
+        Add-Content -LiteralPath $gatewayEnvPath -Value "`nCHATBOT_SSO_SECRET=$secret" -Encoding UTF8
+        $settings['CHATBOT_SSO_SECRET'] = $secret
+        Write-Host 'Initialized the private SSO key in gateway .env.'
+    }
+    if ($settings['CHATBOT_SSO_SECRET'].Length -lt 64) {
+        throw 'CHATBOT_SSO_SECRET must contain at least 64 characters.'
+    }
+    $env:CHATBOT_SSO_SECRET = $settings['CHATBOT_SSO_SECRET']
+}
+
+$currentGatewaySettings = Read-EnvFile $gatewayEnvPath
+if ($currentGatewaySettings['CHATBOT_SSO_SECRET']) {
+    $env:CHATBOT_SSO_SECRET = $currentGatewaySettings['CHATBOT_SSO_SECRET']
+}
+
 function Assert-Docker {
     & docker info --format '{{.ServerVersion}}' | Out-Null
     if ($LASTEXITCODE -ne 0) {
