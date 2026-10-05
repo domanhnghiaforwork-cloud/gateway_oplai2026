@@ -31,6 +31,11 @@ if (-not $LocalOnly) {
 }
 
 # Validate all Compose files before changing running services.
+$sessionGatewayPort = $gatewaySettings['GATEWAY_PORT']
+if (-not $sessionGatewayPort) { $sessionGatewayPort = '8080' }
+$sessionOrigins = @("http://localhost:3001", "http://localhost:$sessionGatewayPort", "http://127.0.0.1:3001", "http://127.0.0.1:$sessionGatewayPort")
+if ($gatewaySettings['NGROK_DOMAIN']) { $sessionOrigins += "https://$($gatewaySettings['NGROK_DOMAIN'])" }
+$env:SYSTEM_SSO_ORIGINS = $sessionOrigins -join ','
 Invoke-Docker ($systemCompose + @('config', '--quiet'))
 Invoke-Docker ($chatbotCompose + @('config', '--quiet'))
 Invoke-Docker ($gatewayCompose + @('--profile', 'tunnel', 'config', '--quiet'))

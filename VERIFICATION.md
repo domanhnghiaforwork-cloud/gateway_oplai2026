@@ -1,5 +1,15 @@
 # Kết quả kiểm tra ngày 05/10/2026
 
+## Đồng bộ đăng xuất và đổi tài khoản (06/10/2026)
+
+- `test_session_sync.cjs`: PASS cho SSO thay thế phiên chatbot còn hợp lệ của tài khoản khác; các tab chatbot khác cập nhật theo tài khoản mới.
+- Đăng xuất system chuyển hai tab chatbot đang mở về login và xóa phiên; đăng nhập system bằng tài khoản B rồi mở chatbot nhận đúng tài khoản B. Đã kiểm tra cả browser storage cùng origin và bridge giữa hai cổng localhost.
+- Logout trong lúc SSO đang chờ không cho phản hồi đến muộn khôi phục phiên. Phản hồi 401 bị trì hoãn của tài khoản A không xóa phiên mới của tài khoản B.
+- Chế độ độc lập không kích hoạt reset; route bridge trả 404 khi không có `SYSTEM_SSO_ORIGINS`. Bridge ở chế độ tích hợp kiểm tra origin trang cha, có CSP `frame-ancestors` và response `no-store`; không có lỗi JavaScript trong các bài kiểm thử trình duyệt.
+- Kiểm thử chạy frontend chatbot thật với harness sử dụng trực tiếp mã API/session của frontend system, hai API xác thực thật trên SQLite tạm và replay guard Redis giả trong fixture. Không dùng dữ liệu, khóa hoặc container đang chạy. Agent Browser xác nhận trang login chatbot hiển thị, có các trường/button và không có error overlay. Chưa kiểm tra lại giao diện system đầy đủ hoặc mạng/container Docker trong lần này.
+- TypeScript của cả hai frontend, Compose merge và cú pháp `start.ps1` PASS; ESLint module đồng bộ và Navbar không có lỗi, còn ba cảnh báo unused có sẵn trong Navbar.
+- Cần chạy `start.ps1 -Build` rồi tải lại các tab đang mở để áp dụng. Trên Linux: `pwsh -NoProfile -File ./start.ps1 -Build`.
+
 ## Tự tạo tài khoản chatbot khi tạo tài khoản system (bổ sung)
 
 - `test_account_sync.py`: 11 bài kiểm thử PASS bằng API ASGI ở hai tiến trình, dữ liệu SQLite tạm; không dùng database hoặc khóa thật.
@@ -21,7 +31,7 @@
 - `verify-sso.ps1` PASS: SSO cho tài khoản đã nhập, endpoint cấp vé yêu cầu đăng nhập, kiểm tra chữ ký/issuer/audience/type/role/expiry, từ chối vé dùng lại, hai worker đổi cùng vé chỉ một yêu cầu thành công, vé SSO không dùng được như JWT chatbot, tương thích mật khẩu Argon2/PBKDF2/cũ.
 - Kiểm tra quyền độc lập: tài khoản chatbot đã có quyền user không bị nâng lên admin từ vé system; không cấu hình khóa SSO thì hai backend từ chối SSO, JWT thông thường vẫn hoạt động.
 - Trình duyệt trên domain public: bấm menu Chatbot tạo tab mới, tự đăng nhập `admin@gmail.com` và đến `/chatbot/admin`. Fragment đã xóa, `window.opener` là null; không có lỗi JavaScript.
-- Trình duyệt: khi system đang đăng nhập `an.nv@student.actvn.edu.vn` và chatbot là `admin@gmail.com`, bấm Chatbot giữ đúng email, quyền và JWT chatbot hiện tại. Không tạo tài khoản chatbot cho system trong trường hợp này.
+- Hành vi cũ, trước bản sửa ngày 06/10/2026: khi system đang đăng nhập `an.nv@student.actvn.edu.vn` và chatbot là `admin@gmail.com`, bấm Chatbot giữ email, quyền và JWT chatbot hiện tại. Hành vi này đã được thay thế: SSO luôn chọn tài khoản system hiện tại.
 - Trình duyệt: thay JWT chatbot bằng JWT thực sự đã hết hạn, bấm Chatbot từ system khôi phục phiên hợp lệ của `admin@gmail.com`.
 - Ảnh giao diện sau SSO: `verification/screenshot-1791190656500.png` (thư mục verification được bỏ qua bởi Git).
 

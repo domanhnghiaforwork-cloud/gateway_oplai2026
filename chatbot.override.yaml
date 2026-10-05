@@ -13,6 +13,7 @@ services:
         NEXT_PUBLIC_BASE_PATH: /chatbot
     environment:
       NEXT_PUBLIC_BASE_PATH: /chatbot
+      SYSTEM_SSO_ORIGINS: ${SYSTEM_SSO_ORIGINS:-}
     ports: !override
       - "127.0.0.1:3000:3000"
     networks:

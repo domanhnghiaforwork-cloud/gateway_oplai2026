@@ -243,14 +243,17 @@ Lệnh này giữ email, mật khẩu và quyền admin/user cho tài khoản m�
 
 Mở `https://larcher-brecken-palynologically.ngrok-free.dev/`, đăng nhập system rồi bấm **Chatbot** ở góc phải. Tab mới sẽ:
 
-- Giữ tài khoản chatbot đang đăng nhập nếu phiên vẫn hợp lệ, kể cả khi khác tài khoản system.
-- Khi chatbot chưa đăng nhập hoặc phiên hết hạn, đăng nhập bằng email của tài khoản system.
+- Đăng nhập bằng email của tài khoản system hiện tại, thay thế phiên chatbot cũ kể cả khi phiên đó còn hợp lệ. Các tab chatbot khác trong cùng trình duyệt cập nhật theo tài khoản mới.
 - Nếu email system chưa có trong chatbot (ví dụ tài khoản system cũ chưa được đồng bộ), SSO vẫn tạo tài khoản chatbot tương ứng với quyền từ system. Tài khoản tạo theo luồng SSO dự phòng này có mật khẩu ngẫu nhiên không được cung cấp. Nếu tài khoản đã được tạo bởi đồng bộ nền, mật khẩu được cấp ở system vẫn được giữ nguyên. Với các tài khoản được sao chép từ chatbot, mật khẩu chatbot hiện tại vẫn giữ nguyên.
 - Khi system chưa đăng nhập, mở chatbot như trước để người dùng đăng nhập trực tiếp.
 
 `start.ps1` tự tạo khóa SSO riêng trong `.env` của gateway và truyền cùng khóa cho hai backend qua các override. Vé do backend system cấp có hạn 60 giây, dùng một lần, kiểm tra chữ ký, mục đích, bên cấp và bên nhận. Vé đi trong fragment `#ticket=...`, được xóa ngay khi trang nhận tải, không truyền mật khẩu hoặc token phiên system qua URL. Không chia sẻ `.env` hoặc khóa này.
 
-Đăng nhập và đăng xuất của hai ứng dụng vẫn riêng biệt: đăng xuất system không tự đăng xuất chatbot. Nếu đang ở chế độ `-LocalOnly`, nút Chatbot mở `http://localhost:3000/chatbot` và SSO cũng hoạt động giữa các cổng khác nhau.
+Khi chạy chung qua gateway, đăng xuất system sẽ xóa phiên chatbot trong cùng trình duyệt và chuyển các tab chatbot đang mở về trang đăng nhập. Đăng nhập hoặc chuyển sang tài khoản system khác cũng xóa phiên chatbot cũ; lần bấm **Chatbot** tiếp theo đăng nhập đúng tài khoản system mới. Khi SSO đang chờ phản hồi mà người dùng đăng xuất, phản hồi đến muộn không khôi phục phiên đã xóa. Đăng xuất riêng ở chatbot không đăng xuất system.
+
+Trên domain gateway, hai ứng dụng dùng sự kiện thay đổi browser storage để cập nhật giữa các tab. Trong chế độ `-LocalOnly`, system và chatbot ở hai cổng khác nhau nên system dùng iframe `/chatbot/session-bridge` và `postMessage` để yêu cầu xóa phiên. Bridge chỉ nhận yêu cầu từ trang cha có origin được cấu hình trong `SYSTEM_SSO_ORIGINS`; `start.ps1` tự truyền domain public, cổng gateway và cổng frontend system local vào biến runtime của frontend chatbot. Chỉ thông báo xóa phiên được gửi qua bridge, không có mật khẩu hoặc token. Bridge không bật khi chạy chatbot bằng Compose gốc.
+
+Nếu đang ở chế độ `-LocalOnly`, nút Chatbot mở `http://localhost:3000/chatbot` và SSO cũng hoạt động giữa các cổng khác nhau. Sau khi cập nhật cơ chế đồng bộ phiên, chạy `start.ps1 -Build` và tải lại các tab system/chatbot đang mở để dùng mã frontend mới. Đăng nhập riêng khi chạy từng hệ thống độc lập vẫn hoạt động như trước.
 
 Compose gốc của mỗi repo không bật SSO. Các tài khoản được nhập vẫn đăng nhập system độc lập bằng email và mật khẩu chatbot. Khi chuyển chatbot từ gateway sang chạy độc lập, dựng lại frontend với `CHATBOT_BASE_PATH` trống như hướng dẫn ở trên.
 
@@ -269,6 +272,8 @@ python .\test_account_sync.py
 ```
 
 Các bài kiểm thử gọi API thật qua ASGI ở hai tiến trình riêng: tạo đơn lẻ/hàng loạt, đăng nhập bằng mật khẩu chung, tác vụ nền, mất kết nối/khởi động lại, mất phản hồi sau khi chatbot đã tạo tài khoản, giữ nguyên tài khoản chatbot cũ, giao dịch rollback/xóa, chạy độc lập và kiểm tra chữ ký/mục đích/hạn dùng của vé.
+
+Kiểm thử đổi tài khoản và đăng xuất giữa các tab nằm trong `test_session_sync.cjs`, với API fixture `test_session_backend.py`. Các fixture dùng database và khóa tạm; không dùng dữ liệu đang chạy. Script trình duyệt cần Playwright, TypeScript của frontend system và frontend chatbot test chạy ở cổng 4130; xem phần đầu hai file để cấu hình các cổng và dependencies. Nó kiểm tra SSO thay phiên cũ, logout qua hai cổng/cùng origin, đổi tài khoản và các phản hồi SSO/401 đến muộn.
 
 cấu trúc thư mục
 system
