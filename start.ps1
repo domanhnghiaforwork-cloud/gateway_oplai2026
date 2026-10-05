@@ -41,6 +41,12 @@ if (-not $existingNetwork) {
     Invoke-Docker @('network', 'create', 'oplai_gateway')
 }
 
+$accountsNetwork = & docker network ls --filter 'name=^oplai_accounts$' --format '{{.Name}}'
+if ($LASTEXITCODE -ne 0) { throw 'Unable to list Docker networks.' }
+if (-not $accountsNetwork) {
+    Invoke-Docker @('network', 'create', '--internal', 'oplai_accounts')
+}
+
 # The original chatbot tunnel must release its domain and inspector port.
 Invoke-Docker ($chatbotCompose + @('--profile', 'tunnel', 'stop', 'ngrok'))
 if ($LocalOnly) {

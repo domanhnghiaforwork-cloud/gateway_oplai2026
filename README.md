@@ -119,7 +119,7 @@ Dừng system, chatbot và gateway; giữ container và volume dữ liệu để
 
 Nginx chuyển `/chatbot` và `/chatbot/...` tới `chatbot-web:3000`, giữ nguyên tiền tố. Các đường dẫn còn lại tới `system-web:3000`. Hai frontend tự chuyển API tới backend trong mạng riêng. SSE của chatbot đi qua Nginx với buffering tắt; Nginx cho phép request body tối đa 100 MB (ứng dụng phía sau có thể có giới hạn riêng).
 
-Các file `system.override.yaml` và `chatbot.override.yaml` chỉ áp dụng khi chạy bằng các script ở đây. Chúng thay thế cổng host của system thành `3001`, chatbot thành `3000`, và kết nối hai frontend vào mạng gateway. Cấu hình Compose gốc vẫn dùng để chạy từng repo độc lập. Trong chế độ chạy chung, luôn dùng script để giữ đúng các override.
+Các file `system.override.yaml` và `chatbot.override.yaml` chỉ áp dụng khi chạy bằng các script ở đây. Chúng thay thế cổng host của system thành `3001`, chatbot thành `3000`, và kết nối hai frontend vào mạng gateway. Hai backend có thêm mạng nội bộ `oplai_accounts` để đồng bộ tài khoản trực tiếp; PostgreSQL, Redis và worker vẫn ở mạng riêng của chatbot. Cấu hình Compose gốc vẫn dùng để chạy từng repo độc lập. Trong chế độ chạy chung, luôn dùng script để giữ đúng các override.
 
 Script giữ tên project system là `system_olpai2026`; chatbot dùng `COMPOSE_PROJECT_NAME` từ `.env` hiện có (`chatbot-v42`). Vì vậy các volume `system_olpai2026_backend_data`, `chatbot-v42_postgres-data` và `chatbot-v42_redis-data` được dùng lại. Khi di chuyển thư mục, giữ nguyên tên project để tiếp tục dùng đúng dữ liệu.
 
@@ -140,6 +140,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1 -Build
 
 `-Build` dựng lại image để cài hỗ trợ mật khẩu Argon2 cho system và cập nhật trang đăng nhập liên kết của chatbot. Những lần chạy sau, bỏ `-Build` nếu mã nguồn không thay đổi.
 
+Khi chạy chung qua gateway, tạo tài khoản trong trang quản trị system (đơn lẻ hoặc hàng loạt) tự động lưu yêu cầu tạo tài khoản chatbot trong cùng giao dịch SQLite. Backend system xử lý yêu cầu ở nền khoảng mỗi 2 giây, tối đa 25 tài khoản mỗi lượt. Không cần bấm biểu tượng Chatbot để kích hoạt. Tài khoản mới bên chatbot dùng email chuẩn hóa chữ thường, mật khẩu được cấp ở system và quyền admin/user tương ứng; chatbot đăng nhập bằng **email**, không phải username system. Chỉ hash Argon2 được gửi qua API nội bộ với vé ký có hạn 60 giây; API này không cấp token đăng nhập.
+
+Nếu chatbot chưa chạy hoặc mất kết nối, thao tác tạo tài khoản system vẫn thành công. Yêu cầu còn trong bảng `chatbot_provision_jobs` và được thử lại với thời gian chờ tăng dần từ 5 giây đến tối đa 5 phút, kể cả sau khi khởi động lại backend system. Khi chatbot hoạt động trở lại, các yêu cầu được xử lý tiếp. `attempts`, `next_attempt_at` và `last_error` giúp theo dõi yêu cầu chưa hoàn thành; mã lỗi không chứa mật khẩu hoặc nội dung vé.
+
+Nếu email đã có trong chatbot, giữ nguyên mật khẩu và quyền hiện tại, không ghi đè. Đồng bộ lặp lại không tạo tài khoản trùng. Cơ chế này chỉ áp dụng cho tài khoản **mới được tạo** qua quản trị system sau khi bật; không nhập tự động tài khoản system cũ, không đồng bộ thao tác sửa mật khẩu/email/quyền hoặc xóa tài khoản. Nếu xóa tài khoản system trước khi gửi yêu cầu thì yêu cầu chờ cũng bị xóa.
+
+Đồng bộ chỉ bật khi cả hai backend nhận `CHATBOT_ACCOUNT_SYNC_ENABLED=true` và khóa `CHATBOT_SSO_SECRET` đủ dài; system còn cần `CHATBOT_INTERNAL_URL` (gateway cấu hình `http://chatbot-api:8000`). Compose gốc không bật cơ chế này. Khi chạy độc lập, không có tác vụ đồng bộ hoặc yêu cầu gọi hệ thống còn lại; đăng nhập thông thường và SSO hiện có giữ nguyên hành vi.
+
+Đăng nhập chatbot kiểm tra mật khẩu đã cấp, hỗ trợ cả mật khẩu system ngắn hơn 8 ký tự hoặc dài hơn 128 ký tự. Đăng ký tài khoản mới trực tiếp trên chatbot vẫn yêu cầu mật khẩu từ 8 đến 128 ký tự.
+
 Đồng bộ toàn bộ tài khoản chatbot hiện có sang system:
 
 ```powershell
@@ -152,7 +162,7 @@ Mở `https://larcher-brecken-palynologically.ngrok-free.dev/`, đăng nhập sy
 
 - Giữ tài khoản chatbot đang đăng nhập nếu phiên vẫn hợp lệ, kể cả khi khác tài khoản system.
 - Khi chatbot chưa đăng nhập hoặc phiên hết hạn, đăng nhập bằng email của tài khoản system.
-- Nếu email system chưa có trong chatbot, tạo tài khoản chatbot tương ứng với quyền từ system. Tài khoản mới này dùng SSO; mật khẩu chatbot được tạo ngẫu nhiên và không được cung cấp. Với các tài khoản được sao chép từ chatbot, mật khẩu chatbot hiện tại vẫn giữ nguyên.
+- Nếu email system chưa có trong chatbot (ví dụ tài khoản system cũ chưa được đồng bộ), SSO vẫn tạo tài khoản chatbot tương ứng với quyền từ system. Tài khoản tạo theo luồng SSO dự phòng này có mật khẩu ngẫu nhiên không được cung cấp. Nếu tài khoản đã được tạo bởi đồng bộ nền, mật khẩu được cấp ở system vẫn được giữ nguyên. Với các tài khoản được sao chép từ chatbot, mật khẩu chatbot hiện tại vẫn giữ nguyên.
 - Khi system chưa đăng nhập, mở chatbot như trước để người dùng đăng nhập trực tiếp.
 
 `start.ps1` tự tạo khóa SSO riêng trong `.env` của gateway và truyền cùng khóa cho hai backend qua các override. Vé do backend system cấp có hạn 60 giây, dùng một lần, kiểm tra chữ ký, mục đích, bên cấp và bên nhận. Vé đi trong fragment `#ticket=...`, được xóa ngay khi trang nhận tải, không truyền mật khẩu hoặc token phiên system qua URL. Không chia sẻ `.env` hoặc khóa này.
@@ -168,6 +178,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\verify-sso.ps1
 ```
 
 Lệnh kiểm tra tài khoản đã nhập, mật khẩu Argon2/PBKDF2/cũ, từ chối yêu cầu chưa đăng nhập, vé sai chữ ký/mục đích/bên cấp/bên nhận/hết hạn, vé dùng lại và đổi vé đồng thời. Nó không đổi mật khẩu hoặc tạo tài khoản thử trong database đang chạy. Token kiểm tra chỉ giữ trong bộ nhớ, không in ra terminal.
+
+Kiểm thử đồng bộ tài khoản trên cơ sở dữ liệu tạm, không cần Docker hoặc khóa thật (Python đã cài dependencies xác thực của hai backend và `aiosqlite`):
+
+```powershell
+python .\test_account_sync.py
+```
+
+Các bài kiểm thử gọi API thật qua ASGI ở hai tiến trình riêng: tạo đơn lẻ/hàng loạt, đăng nhập bằng mật khẩu chung, tác vụ nền, mất kết nối/khởi động lại, mất phản hồi sau khi chatbot đã tạo tài khoản, giữ nguyên tài khoản chatbot cũ, giao dịch rollback/xóa, chạy độc lập và kiểm tra chữ ký/mục đích/hạn dùng của vé.
 
 cấu trúc thư mục
 system

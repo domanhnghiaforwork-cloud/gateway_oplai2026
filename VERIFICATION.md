@@ -1,5 +1,16 @@
 # Kết quả kiểm tra ngày 05/10/2026
 
+## Tự tạo tài khoản chatbot khi tạo tài khoản system (bổ sung)
+
+- `test_account_sync.py`: 11 bài kiểm thử PASS bằng API ASGI ở hai tiến trình, dữ liệu SQLite tạm; không dùng database hoặc khóa thật.
+- Xác nhận tạo đơn lẻ/hàng loạt và tác vụ nền tự tạo tài khoản chatbot với email, mật khẩu và quyền tương ứng; đăng nhập trực tiếp thành công. Kiểm tra cả mật khẩu 6 ký tự do system sinh và mật khẩu trên 128 ký tự; đăng ký chatbot vẫn giữ giới hạn 8–128.
+- Xác nhận chatbot mất kết nối không làm hỏng tài khoản system; yêu cầu còn sau khi đóng/mở lại database và tiến trình nhận. Mất phản hồi sau khi chatbot đã tạo tài khoản rồi thử lại không tạo trùng hoặc thay mật khẩu.
+- Xác nhận giữ nguyên mật khẩu/quyền của tài khoản chatbot trùng email; rollback, tạo trùng và xóa tài khoản system chưa gửi không để lại yêu cầu sai.
+- Xác nhận chế độ độc lập không tạo yêu cầu hoặc gọi chatbot, không chạy tác vụ đồng bộ; đăng ký/đăng nhập chatbot vẫn hoạt động khi API đồng bộ bị tắt. Thiếu khóa SSO không bật đồng bộ.
+- Vé sai chữ ký, issuer, audience, loại, quyền, email, hash mật khẩu, jti hoặc hạn dùng bị từ chối. Vé đồng bộ không đổi được phiên SSO và không xác thực được `/users/me`.
+- TypeScript frontend chatbot, kiểm tra dependencies Python và cấu hình Compose merge với override đều PASS; cú pháp PowerShell của `start.ps1` hợp lệ.
+- Docker Desktop chưa chạy trong lần kiểm tra bổ sung này; chưa build/restart container hoặc kiểm tra mạng Docker trực tiếp. Cần bật Docker Desktop và chạy `start.ps1 -Build` để áp dụng.
+
 ## Đồng bộ tài khoản và SSO (bổ sung)
 
 - Dựng lại và chạy toàn bộ Docker thành công; frontend/backend chatbot, PostgreSQL, Redis và Nginx healthy; domain public đang mở.

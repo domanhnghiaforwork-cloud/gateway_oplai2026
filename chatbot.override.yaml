@@ -2,6 +2,11 @@ services:
   backend:
     environment:
       CHATBOT_SSO_SECRET: ${CHATBOT_SSO_SECRET:?Start using gateway start.ps1 to initialize SSO}
+      CHATBOT_ACCOUNT_SYNC_ENABLED: "true"
+    networks:
+      default: {}
+      accounts:
+        aliases: [chatbot-api]
   frontend:
     build:
       args:
@@ -16,6 +21,9 @@ services:
         aliases: [chatbot-web]
 
 networks:
+  accounts:
+    external: true
+    name: oplai_accounts
   shared:
     external: true
     name: oplai_gateway
