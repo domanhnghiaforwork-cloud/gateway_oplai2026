@@ -4,6 +4,7 @@ param(
 )
 . (Join-Path $PSScriptRoot 'common.ps1')
 
+Assert-UniqueHostPorts -LocalOnly:$LocalOnly
 Assert-Docker
 foreach ($requiredPath in @((Join-Path $chatbotPath '.env'), (Join-Path $chatbotPath 'backend/.env'))) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
@@ -17,7 +18,7 @@ if (-not (Test-Path -LiteralPath $gatewayEnvPath)) {
 $gatewaySettings = Read-EnvFile $gatewayEnvPath
 Initialize-Sso
 if ($LocalOnly) {
-    $env:CHATBOT_URL = 'http://localhost:3000/chatbot'
+    $env:CHATBOT_URL = "http://localhost:$($env:CHATBOT_FRONTEND_PORT)/chatbot"
 } else {
     $env:CHATBOT_URL = "https://$($gatewaySettings['NGROK_DOMAIN'])/chatbot"
 }
@@ -31,9 +32,8 @@ if (-not $LocalOnly) {
 }
 
 # Validate all Compose files before changing running services.
-$sessionGatewayPort = $gatewaySettings['GATEWAY_PORT']
-if (-not $sessionGatewayPort) { $sessionGatewayPort = '8080' }
-$sessionOrigins = @("http://localhost:3001", "http://localhost:$sessionGatewayPort", "http://127.0.0.1:3001", "http://127.0.0.1:$sessionGatewayPort")
+$gatewayPort = $env:GATEWAY_PORT
+$sessionOrigins = @("http://localhost:$($env:SYSTEM_FRONTEND_PORT)", "http://localhost:$gatewayPort", "http://127.0.0.1:$($env:SYSTEM_FRONTEND_PORT)", "http://127.0.0.1:$gatewayPort")
 if ($gatewaySettings['NGROK_DOMAIN']) { $sessionOrigins += "https://$($gatewaySettings['NGROK_DOMAIN'])" }
 $env:SYSTEM_SSO_ORIGINS = $sessionOrigins -join ','
 Invoke-Docker ($systemCompose + @('config', '--quiet'))
@@ -60,15 +60,13 @@ if ($LocalOnly) {
 
 $upArgs = @('up', '-d')
 if ($Build) { $upArgs += '--build' }
-Write-Host 'Starting system (web: localhost:3001)...'
+Write-Host "Starting system (web: localhost:$($env:SYSTEM_FRONTEND_PORT), API: localhost:$($env:SYSTEM_BACKEND_PORT))..."
 Invoke-Docker ($systemCompose + $upArgs)
-Write-Host 'Starting chatbot (web: localhost:3000/chatbot)...'
+Write-Host "Starting chatbot (web: localhost:$($env:CHATBOT_FRONTEND_PORT)/chatbot)..."
 Invoke-Docker ($chatbotCompose + $upArgs)
 Write-Host 'Starting shared gateway...'
 Invoke-Docker ($gatewayCompose + @('up', '-d', '--wait', '--wait-timeout', '90', 'nginx'))
 
-$gatewayPort = $gatewaySettings['GATEWAY_PORT']
-if (-not $gatewayPort) { $gatewayPort = '8080' }
 function Wait-Http([string]$Url) {
     $deadline = (Get-Date).AddMinutes(3)
     do {
@@ -87,8 +85,7 @@ Write-Host "Local chatbot: http://localhost:$gatewayPort/chatbot"
 
 if (-not $LocalOnly) {
     Invoke-Docker ($gatewayCompose + @('--profile', 'tunnel', 'up', '-d', 'ngrok'))
-    $inspectorPort = $gatewaySettings['NGROK_INSPECTOR_PORT']
-    if (-not $inspectorPort) { $inspectorPort = '4040' }
+    $inspectorPort = $env:NGROK_INSPECTOR_PORT
     $tunnelReady = $false
     $expectedUrl = "https://$($gatewaySettings['NGROK_DOMAIN'])"
     $tunnelDeadline = (Get-Date).AddSeconds(45)

@@ -14,6 +14,32 @@ Thư mục gateway trên Windows: `D:\nghia\oplai2026\system\gateway_oplai2026`.
 | `http://localhost:3000/chatbot` | Frontend chatbot trực tiếp |
 | `http://localhost:4040/` | Ngrok inspector |
 
+Các địa chỉ trên dùng port mặc định. Có thể đổi cả 5 port host trong `.env` của gateway như hướng dẫn dưới đây.
+
+## Đổi port
+
+Sửa file `gateway_oplai2026/.env`; ví dụ chuyển sang bộ port khác:
+
+```dotenv
+GATEWAY_PORT=9080
+SYSTEM_FRONTEND_PORT=3101
+CHATBOT_FRONTEND_PORT=3100
+SYSTEM_BACKEND_PORT=8100
+NGROK_INSPECTOR_PORT=4140
+```
+
+Sau đó chạy lại từ thư mục gateway:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1 -Build
+```
+
+Với ví dụ này, mở system tại `http://localhost:9080/`, chatbot tại `http://localhost:9080/chatbot`, hoặc truy cập frontend trực tiếp qua port `3101`/`3100`; API system dùng port `8100`, Ngrok Inspector dùng port `4140`. Chỉ đổi port thì có thể bỏ `-Build` nếu đã có image phù hợp.
+
+Mặc định tương ứng là `8080`, `3001`, `3000`, `8000`, `4040`. Các port phải là số từ 1 đến 65535, khác nhau và còn trống trên máy. Script kiểm tra giá trị và port trùng trước khi khởi động; Docker báo lỗi nếu port bị chương trình khác chiếm. Biến môi trường PowerShell cùng tên được ưu tiên hơn `.env`.
+
+Script tự cập nhật URL chatbot ở chế độ `-LocalOnly`, origin SSO, kiểm tra readiness và địa chỉ hiển thị theo port mới. Port nội bộ Docker và domain public Ngrok không đổi; PostgreSQL, Redis và backend chatbot vẫn chỉ truy cập trong Docker. Backend system giữ cách bind hiện có trên mọi địa chỉ mạng; các port host còn lại chỉ bind `127.0.0.1`.
+
 ## Chạy trên Linux (Ubuntu)
 
 Các script `.ps1` chạy bằng PowerShell 7 trên Linux. Dùng lệnh `pwsh`, đường dẫn `./start.ps1` và không cần `-ExecutionPolicy Bypass`. Những ví dụ `powershell ... .\start.ps1` ở các mục bên dưới dành cho Windows.
@@ -202,7 +228,7 @@ Dừng system, chatbot và gateway; giữ container và volume dữ liệu để
 
 Nginx chuyển `/chatbot` và `/chatbot/...` tới `chatbot-web:3000`, giữ nguyên tiền tố. Các đường dẫn còn lại tới `system-web:3000`. Hai frontend tự chuyển API tới backend trong mạng riêng. SSE của chatbot đi qua Nginx với buffering tắt; Nginx cho phép request body tối đa 100 MB (ứng dụng phía sau có thể có giới hạn riêng).
 
-Các file `system.override.yaml` và `chatbot.override.yaml` chỉ áp dụng khi chạy bằng các script ở đây. Chúng thay thế cổng host của system thành `3001`, chatbot thành `3000`, và kết nối hai frontend vào mạng gateway. Hai backend có thêm mạng nội bộ `oplai_accounts` để đồng bộ tài khoản trực tiếp; PostgreSQL, Redis và worker vẫn ở mạng riêng của chatbot. Cấu hình Compose gốc vẫn dùng để chạy từng repo độc lập. Trong chế độ chạy chung, luôn dùng script để giữ đúng các override.
+Các file `system.override.yaml` và `chatbot.override.yaml` chỉ áp dụng khi chạy bằng các script ở đây. Chúng dùng cổng host frontend system từ `SYSTEM_FRONTEND_PORT` (mặc định `3001`), chatbot từ `CHATBOT_FRONTEND_PORT` (mặc định `3000`), backend system từ `SYSTEM_BACKEND_PORT` (mặc định `8000`), và kết nối hai frontend vào mạng gateway. Hai backend có thêm mạng nội bộ `oplai_accounts` để đồng bộ tài khoản trực tiếp; PostgreSQL, Redis và worker vẫn ở mạng riêng của chatbot. Cấu hình Compose gốc vẫn dùng để chạy từng repo độc lập. Trong chế độ chạy chung, luôn dùng script để giữ đúng các override.
 
 Script giữ tên project system là `system_olpai2026`; chatbot dùng `COMPOSE_PROJECT_NAME` từ `.env` hiện có (`chatbot-v42`). Vì vậy các volume `system_olpai2026_backend_data`, `chatbot-v42_postgres-data` và `chatbot-v42_redis-data` được dùng lại. Khi di chuyển thư mục, giữ nguyên tên project để tiếp tục dùng đúng dữ liệu.
 
@@ -210,7 +236,7 @@ Chatbot hỗ trợ `NEXT_PUBLIC_BASE_PATH` khi build. Chạy chung: `/chatbot`; 
 
 Trong lần triển khai này, database SQLite trong volume system cũ thiếu `problems.category` và `problems.pdf_filename`. Backend đã được bổ sung migration tự động trước bước seed; đề có mã `NLP-*` được gán nhóm `NLP`, các đề còn lại mặc định `CV`. Bản sao database trước khi bổ sung hai cột nằm trong `system_olpai2026/backups/pre-gateway-20261005-144530/`. Migration chỉ thêm các cột còn thiếu và có thể chạy lại.
 
-Nếu ngrok không mở được domain, xem log ngrok và kiểm tra domain/authtoken trong `.env`. Dừng các tiến trình ngrok khác đang chiếm domain. Nếu thấy `port is already allocated`, kiểm tra `docker ps` và tiến trình đang dùng cổng `3000`, `3001`, `8080` hoặc `4040`. Đổi `GATEWAY_PORT`/`NGROK_INSPECTOR_PORT` trong `.env` khi cần; hai cổng frontend được đặt trong các file override.
+Nếu ngrok không mở được domain, xem log ngrok và kiểm tra domain/authtoken trong `.env`. Dừng các tiến trình ngrok khác đang chiếm domain. Nếu thấy `port is already allocated`, kiểm tra `docker ps` và tiến trình đang dùng các cổng đã cấu hình. Đổi port trong `.env` của gateway theo mục **Đổi port**, rồi chạy lại `start.ps1`.
 
 ## Tài khoản dùng chung và mở Chatbot
 
@@ -253,7 +279,7 @@ Khi chạy chung qua gateway, đăng xuất system sẽ xóa phiên chatbot tron
 
 Trên domain gateway, hai ứng dụng dùng sự kiện thay đổi browser storage để cập nhật giữa các tab. Trong chế độ `-LocalOnly`, system và chatbot ở hai cổng khác nhau nên system dùng iframe `/chatbot/session-bridge` và `postMessage` để yêu cầu xóa phiên. Bridge chỉ nhận yêu cầu từ trang cha có origin được cấu hình trong `SYSTEM_SSO_ORIGINS`; `start.ps1` tự truyền domain public, cổng gateway và cổng frontend system local vào biến runtime của frontend chatbot. Chỉ thông báo xóa phiên được gửi qua bridge, không có mật khẩu hoặc token. Bridge không bật khi chạy chatbot bằng Compose gốc.
 
-Nếu đang ở chế độ `-LocalOnly`, nút Chatbot mở `http://localhost:3000/chatbot` và SSO cũng hoạt động giữa các cổng khác nhau. Sau khi cập nhật cơ chế đồng bộ phiên, chạy `start.ps1 -Build` và tải lại các tab system/chatbot đang mở để dùng mã frontend mới. Đăng nhập riêng khi chạy từng hệ thống độc lập vẫn hoạt động như trước.
+Nếu đang ở chế độ `-LocalOnly`, nút Chatbot mở `http://localhost:<CHATBOT_FRONTEND_PORT>/chatbot` (mặc định `3000`) và SSO cũng hoạt động giữa các cổng khác nhau. Sau khi cập nhật cơ chế đồng bộ phiên, chạy `start.ps1 -Build` và tải lại các tab system/chatbot đang mở để dùng mã frontend mới. Đăng nhập riêng khi chạy từng hệ thống độc lập vẫn hoạt động như trước.
 
 Compose gốc của mỗi repo không bật SSO. Các tài khoản được nhập vẫn đăng nhập system độc lập bằng email và mật khẩu chatbot. Khi chuyển chatbot từ gateway sang chạy độc lập, dựng lại frontend với `CHATBOT_BASE_PATH` trống như hướng dẫn ở trên.
 

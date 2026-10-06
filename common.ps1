@@ -45,6 +45,38 @@ if ($currentGatewaySettings['CHATBOT_SSO_SECRET']) {
     $env:CHATBOT_SSO_SECRET = $currentGatewaySettings['CHATBOT_SSO_SECRET']
 }
 
+# Export host ports so all three Compose projects use the same gateway settings.
+# Process environment overrides .env, following Docker Compose precedence.
+$hostPortDefaults = [ordered]@{
+    GATEWAY_PORT = '8080'
+    SYSTEM_FRONTEND_PORT = '3001'
+    CHATBOT_FRONTEND_PORT = '3000'
+    SYSTEM_BACKEND_PORT = '8000'
+    NGROK_INSPECTOR_PORT = '4040'
+}
+foreach ($portName in $hostPortDefaults.Keys) {
+    $portValue = [Environment]::GetEnvironmentVariable($portName, 'Process')
+    if (-not $portValue) { $portValue = $currentGatewaySettings[$portName] }
+    if (-not $portValue) { $portValue = $hostPortDefaults[$portName] }
+    $portNumber = 0
+    if ($portValue -notmatch '^[0-9]+$' -or -not [int]::TryParse($portValue, [ref]$portNumber) -or $portNumber -lt 1 -or $portNumber -gt 65535) {
+        throw "Invalid ${portName}: use a port between 1 and 65535."
+    }
+    [Environment]::SetEnvironmentVariable($portName, [string]$portNumber, 'Process')
+}
+
+function Assert-UniqueHostPorts([switch]$LocalOnly) {
+    $usedPorts = @{}
+    foreach ($portName in $hostPortDefaults.Keys) {
+        if ($LocalOnly -and $portName -eq 'NGROK_INSPECTOR_PORT') { continue }
+        $portValue = [Environment]::GetEnvironmentVariable($portName, 'Process')
+        if ($usedPorts.ContainsKey($portValue)) {
+            throw "Host port $portValue is shared by $($usedPorts[$portValue]) and $portName. Choose different host ports."
+        }
+        $usedPorts[$portValue] = $portName
+    }
+}
+
 function Assert-Docker {
     & docker info --format '{{.ServerVersion}}' | Out-Null
     if ($LASTEXITCODE -ne 0) {

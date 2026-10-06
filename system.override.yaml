@@ -1,5 +1,7 @@
 services:
   backend:
+    ports: !override
+      - "${SYSTEM_BACKEND_PORT:-8000}:8000"
     environment:
       CHATBOT_SSO_SECRET: ${CHATBOT_SSO_SECRET:?Start using gateway start.ps1 to initialize SSO}
       CHATBOT_ACCOUNT_SYNC_ENABLED: "true"
@@ -12,7 +14,7 @@ services:
       NEXT_PUBLIC_CHATBOT_SSO_ENABLED: "true"
       NEXT_PUBLIC_CHATBOT_URL: ${CHATBOT_URL:-https://larcher-brecken-palynologically.ngrok-free.dev/chatbot}
     ports: !override
-      - "127.0.0.1:3001:3000"
+      - "127.0.0.1:${SYSTEM_FRONTEND_PORT:-3001}:3000"
     networks:
       default: {}
       shared:
