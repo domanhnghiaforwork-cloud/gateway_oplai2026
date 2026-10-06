@@ -59,7 +59,10 @@ if ($LocalOnly) {
 }
 
 $upArgs = @('up', '-d')
-if ($Build) { $upArgs += '--build' }
+if ($Build) {
+    Invoke-Docker ($systemCompose + @('build'))
+    Invoke-Docker ($chatbotCompose + @('build'))
+}
 Write-Host "Starting system (web: localhost:$($env:SYSTEM_FRONTEND_PORT), API: localhost:$($env:SYSTEM_BACKEND_PORT))..."
 Invoke-Docker ($systemCompose + $upArgs)
 Write-Host "Starting chatbot (web: localhost:$($env:CHATBOT_FRONTEND_PORT)/chatbot)..."

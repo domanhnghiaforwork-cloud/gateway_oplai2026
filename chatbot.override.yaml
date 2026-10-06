@@ -7,6 +7,8 @@ services:
       default: {}
       accounts:
         aliases: [chatbot-api]
+      shared:
+        aliases: [chatbot-backend]
   frontend:
     build:
       args:
